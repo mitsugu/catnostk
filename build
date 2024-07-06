@@ -1,0 +1,2 @@
+#! /bin/sh
+go build catnostk.go config.go dispHelp.go expandGoNostr.go
