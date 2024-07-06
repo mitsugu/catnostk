@@ -28,7 +28,7 @@ const (
 	nsfw          = true
 	layout        = "2006/01/02 15:04:05 MST"
 	startTime     = " 00:00:00 JST"
-	endtTime      = " 23:59:59 JST"
+	endTime      = " 23:59:59 JST"
 )
 
 //
@@ -49,7 +49,7 @@ type NOSTRLOG struct {
 //
 
 /*
-main
+main {{{
 */
 func main() {
 	var (
@@ -108,7 +108,7 @@ func main() {
 	fmt.Println("}")
 }
 
-//
+// }}}
 
 /*
 parseDate {{{
@@ -119,13 +119,19 @@ func parseDate(d string) (int64, int64, error) {
 	switch len(d) {
 	case 4:
 		strStart = fmt.Sprintf("%s/01/01%s", d, startTime)
-		strEnd = fmt.Sprintf("%s/12/31%s", d, endtTime)
+		strEnd = fmt.Sprintf("%s/12/31%s", d, endTime)
 	case 7:
-		strStart = fmt.Sprintf("%s/01%s", d, startTime)
-		strEnd = fmt.Sprintf("%s/01%s", d, endtTime)
+		year := FirstFourChars(d)
+		mon := getLastTwoChars(d)
+		day, err := GetLastDayOfMonth(year, mon)
+		if err != nil {
+			return 0, 0, err
+		}
+		strStart = fmt.Sprintf("%s/%s/01%s", year, mon, startTime)
+		strEnd = fmt.Sprintf("%s/%s/%s%s", year, mon, day, endTime)
 	case 10:
 		strStart = fmt.Sprintf("%s%s", d, startTime)
-		strEnd = fmt.Sprintf("%s%s", d, endtTime)
+		strEnd = fmt.Sprintf("%s%s", d, endTime)
 	default:
 		return 0, 0, errors.New("Invalid date specification!")
 	}
@@ -139,6 +145,52 @@ func parseDate(d string) (int64, int64, error) {
 		return 0, 0, err
 	}
 	return sdate.Unix(), edate.Unix(), nil
+}
+
+// }}}
+
+/*
+GetLastDayOfMonth {{{
+*/
+func GetLastDayOfMonth(year, month string) (string, error) {
+	jst, err := time.LoadLocation("Asia/Tokyo")
+	if err != nil {
+		return "", err
+	}
+
+	dateStr := fmt.Sprintf("%s-%s-01", year, month)
+	t, err := time.ParseInLocation("2006-01-02", dateStr, jst)
+	if err != nil {
+		return "", err
+	}
+	lastDay := t.AddDate(0, 1, -1).Day()
+
+	return fmt.Sprintf("%02d", lastDay), nil
+}
+
+// }}}
+
+/*
+FirstFourChars {{{
+*/
+func FirstFourChars(s string) string {
+	if len(s) < 4 {
+		return s // 文字列の長さが4未満の場合、全ての文字列を返す
+	}
+	return s[:4]
+}
+
+// }}}
+
+/*
+getLastTwoChars {{{
+*/
+func getLastTwoChars(s string) string {
+	if len(s) < 2 {
+		return s // 文字列が2文字未満の場合はそのまま返す
+	}
+	runes := []rune(s) // 文字列をルーンスライスに変換
+	return string(runes[len(runes)-2:]) // 最後の2文字を取得
 }
 
 // }}}
@@ -180,7 +232,7 @@ func readStdIn() (string, error) {
 		}
 		cn <- buff.String()
 	}()
-	timer := time.NewTimer(time.Second)
+	timer := time.NewTimer(time.Second*5)
 	defer timer.Stop()
 	select {
 	case text := <-cn:
@@ -213,13 +265,9 @@ func loadSourceFile(path string, wb *[]NOSTRLOG) error {
 		return err
 	}
 
-	p := make(map[string]CONTENTS)
-	if err := json5.Unmarshal([]byte(b), &p); err != nil {
-		return err
-	}
-	for i := range p {
-		tmp := NOSTRLOG{i, p[i]}
-		*wb = append(*wb, tmp)
+	if err := unmarchalStr(string(b), wb); err != nil {
+		log.Fatal(err)
+		os.Exit(1)
 	}
 	return nil
 }
@@ -239,6 +287,7 @@ func unmarchalStr(str string, wb *[]NOSTRLOG) error {
 		content.Date = p[i].Date
 		content.PubKey = p[i].PubKey
 		buf := p[i].Content
+		buf = strings.Replace(buf, "\"", "\\\"", -1)
 		buf = strings.Replace(buf, "\n", "\\n", -1)
 		buf = strings.Replace(buf, "\b", "\\b", -1)
 		buf = strings.Replace(buf, "\f", "\\f", -1)
