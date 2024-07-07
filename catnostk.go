@@ -7,11 +7,12 @@ import (
 	"flag"
 	"fmt"
 	"github.com/yosuke-furukawa/json5/encoding/json5"
+	"encoding/json"
 	"log"
 	"os"
 	"sort"
 	"strconv"
-	"strings"
+	//"strings"
 	"time"
 )
 
@@ -286,21 +287,30 @@ func unmarchalStr(str string, wb *[]NOSTRLOG) error {
 		var content CONTENTS
 		content.Date = p[i].Date
 		content.PubKey = p[i].PubKey
-		buf := p[i].Content
-		buf = strings.Replace(buf, "\"", "\\\"", -1)
-		buf = strings.Replace(buf, "\n", "\\n", -1)
-		buf = strings.Replace(buf, "\b", "\\b", -1)
-		buf = strings.Replace(buf, "\f", "\\f", -1)
-		buf = strings.Replace(buf, "\r", "\\r", -1)
-		buf = strings.Replace(buf, "\t", "\\t", -1)
-		buf = strings.Replace(buf, "\\", "\\\\", -1)
-		buf = strings.Replace(buf, "/", "\\/", -1)
-		buf = strings.Replace(buf, "\"", "\\\"", -1)
-		content.Content = buf
+
+		var err error
+		content.Content, err =escapeJSON(p[i].Content)
+		if err != nil {
+			return err
+		}
+
 		tmp := NOSTRLOG{i, content}
 		*wb = append(*wb, tmp)
 	}
 	return nil
+}
+
+// }}}
+
+/*
+escapeJSON {{{
+*/
+func escapeJSON(content string) (string, error) {
+	escapedContent, err := json.Marshal(content)
+	if err != nil {
+		return "",err
+	}
+	return string(escapedContent[1 : len(escapedContent)-1]), nil
 }
 
 // }}}
